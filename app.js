@@ -2,11 +2,77 @@
 
 const SETTINGS_KEY = "frame-field-settings-v1";
 const REFRESH_INTERVAL_MS = 60000;
+const packageCatalog = [
+  {
+    id: "weddingPackage1", label: "Wedding Package 1",
+    description: "Wedding album package",
+    inclusions: [
+      "30-page album, 12 × 36 in",
+      "Couple photo calendar",
+      "Extra small album (same copy)"
+    ]
+  },
+  {
+    id: "weddingPackage2", label: "Package 2 · Traditional Wedding",
+    description: "Traditional wedding coverage and keepsakes",
+    inclusions: [
+      "30-page album, 12 × 36 in",
+      "Couple photo calendar",
+      "Extra small album (same copy)",
+      "Traditional full film, 1–2 hours, 4K quality",
+      "All original soft copies"
+    ]
+  },
+  {
+    id: "weddingPackage3", label: "Package 3 · Cinematic Wedding",
+    description: "Cinematic wedding photography and films",
+    inclusions: [
+      "30-page album, 12 × 36 in, with acrylic cover pad and leather bag",
+      "Traditional full film, 1–2 hours, 4K quality",
+      "Wedding highlight film, 4–5 minutes",
+      "1-minute teaser",
+      "30-second reel",
+      "All original soft copies",
+      "Additional candid photographer"
+    ]
+  },
+  {
+    id: "preWeddingPackage", label: "Pre-Wedding Package",
+    description: "25-page pre-wedding album and films",
+    inclusions: [
+      "25-page album, 13 × 36 in, with leather bag and acrylic cover pad",
+      "Teaser",
+      "Highlight film",
+      "Reel",
+      "All original soft copies"
+    ]
+  },
+  {
+    id: "completePackage", label: "Complete · Pre-Wedding, Wedding & Engagement",
+    description: "Pre-wedding, wedding, and engagement coverage",
+    inclusions: [
+      "Pre-wedding: 20-page album, 13 × 36 in, with leather bag and acrylic cover pad",
+      "Wedding & engagement: 20-page album, 13 × 36 in, with leather bag and acrylic cover pad",
+      "Wedding and engagement teasers",
+      "Wedding and engagement highlights",
+      "Wedding and engagement reels",
+      "All original soft copies"
+    ]
+  }
+];
 const defaults = {
   apiUrl: "https://script.google.com/macros/s/AKfycbz3BLp2ARP4Y5gJY_KFyPijmj48LsJj5FwzYvlo6nn5Yf20lsFNJVBEEDjwgWtwaw51gQ/exec",
   apiKey: "", studioName: "Akshay Photo and Films", tagline: "Wedding Photography & Cinematography",
   studioAddress: "", studioPhone: "+91 73851 99613", studioEmail: "Akshaykumarkhot2115@gmail.com",
-  studioWebsite: "https://akshayphotography123.netlify.app/", taxId: "", paymentDetails: ""
+  studioWebsite: "https://akshayphotography123.netlify.app/", taxId: "", paymentDetails: "",
+  quoteValidityDays: 30,
+  fixedRates: {
+    weddingPackage1: 26000,
+    weddingPackage2: 38000,
+    weddingPackage3: 70000,
+    preWeddingPackage: 55000,
+    completePackage: 140000
+  }
 };
 const state = { projects: [], payments: [], settings: loadSettings(), selectedProjectId: null, busy: false, toastTimer: null };
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -15,7 +81,11 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 function loadSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-    const settings = { ...defaults, ...saved };
+    const settings = {
+      ...defaults,
+      ...saved,
+      fixedRates: { ...defaults.fixedRates, ...(saved.fixedRates || {}) }
+    };
     if (settings.apiUrl === "/.netlify/functions/sheets") {
       settings.apiUrl = defaults.apiUrl;
     }
@@ -31,7 +101,11 @@ function loadSettings() {
 }
 
 function saveSettings(settings) {
-  state.settings = { ...defaults, ...settings };
+  state.settings = {
+    ...defaults,
+    ...settings,
+    fixedRates: { ...defaults.fixedRates, ...(settings.fixedRates || {}) }
+  };
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
   } catch (error) {
@@ -303,6 +377,114 @@ function studioSettingsForm() {
   for (const [key, value] of Object.entries(state.settings)) {
     if (form.elements.namedItem(key)) form.elements.namedItem(key).value = value;
   }
+  for (const packageItem of packageCatalog) {
+    form.elements[`rate${capitalize(packageItem.id)}`].value = state.settings.fixedRates[packageItem.id] || "";
+  }
+}
+
+function capitalize(value) {
+  return value[0].toUpperCase() + value.slice(1);
+}
+
+function configuredRate(service) {
+  const value = Number(state.settings.fixedRates[service.id]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function openQuoteForm() {
+  const form = $("#quoteForm");
+  form.reset();
+  form.elements.enquiryDate.value = dayInputValue();
+  $("#quoteSelectAll").checked = true;
+  $("#quoteError").hidden = true;
+  $("#quoteError").textContent = "";
+  renderQuoteServices();
+  showDialog("quoteModal");
+}
+
+function selectedQuoteServices() {
+  const selectedIds = $$("[name='quoteServices']:checked", $("#quoteServicePicker")).map(input => input.value);
+  return packageCatalog.filter(packageItem => selectedIds.includes(packageItem.id));
+}
+
+function renderQuoteServices() {
+  const picker = $("#quoteServicePicker");
+  picker.hidden = false;
+  picker.innerHTML = packageCatalog.map(packageItem => {
+    const rate = configuredRate(packageItem);
+    return `<label class="quote-service-option">
+      <input type="checkbox" name="quoteServices" value="${packageItem.id}" checked>
+      <span class="quote-service-copy"><strong>${escapeHtml(packageItem.label)}</strong><small>${escapeHtml(packageItem.description)}</small></span>
+      <span class="quote-service-rate">${rate === null ? `<em>Rate not set</em>` : escapeHtml(money(rate))}</span>
+    </label>`;
+  }).join("");
+  updateQuoteTotal();
+}
+
+function updateQuoteTotal() {
+  const services = selectedQuoteServices();
+  const total = services.reduce((sum, service) => sum + (configuredRate(service) || 0), 0);
+  const missing = services.filter(service => configuredRate(service) === null);
+  const totalLine = $("#quoteTotalLine");
+  totalLine.hidden = false;
+  totalLine.innerHTML = `<span>${services.length} package${services.length === 1 ? "" : "s"} selected</span><strong>${escapeHtml(money(total))}</strong>`;
+  $("#quoteSelectAll").checked = services.length === packageCatalog.length;
+  const error = $("#quoteError");
+  if (missing.length) {
+    error.textContent = `Set rates for ${missing.map(packageItem => packageItem.label).join(", ")} in Settings before generating this quotation.`;
+    error.hidden = false;
+  } else if (services.length === 0) {
+    error.textContent = "Select at least one package for this quotation.";
+    error.hidden = false;
+  } else {
+    error.hidden = true;
+  }
+}
+
+function quotationId() {
+  const day = dayInputValue().replaceAll("-", "");
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "0");
+  return `APF-Q-${day}-${suffix}`;
+}
+
+function addDays(dateText, days) {
+  const date = new Date(`${dateText}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function quotationDocument(quotation) {
+  const studio = state.settings;
+  const taxId = studio.taxId ? `<div><b>GST / TAX ID</b><br>${escapeHtml(studio.taxId)}</div>` : "";
+  const rows = quotation.services.map(packageItem => `
+    <tr><td><b>${escapeHtml(packageItem.label)}</b><ul class="inclusions" style="margin:4px 0 0;padding-left:15px;font-size:9px;line-height:1.5;color:#82746d">${packageItem.inclusions.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></td><td>1</td><td>${escapeHtml(money(packageItem.rate))}</td></tr>`).join("");
+  const enquiry = quotation.enquiryDetails
+    ? `<section class="enquiry"><h2>ENQUIRY DETAILS</h2><p>${escapeHtml(quotation.enquiryDetails)}</p></section>` : "";
+  const studioDetails = [studio.studioAddress, studio.studioPhone, studio.studioEmail, studio.studioWebsite].filter(Boolean).join("\n");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quotation ${escapeHtml(quotation.id)} — ${escapeHtml(studio.studioName)}</title>
+    <style>
+      *{box-sizing:border-box}body{margin:0;background:#ece9e5;color:#241a19;font:12px "Work Sans",Arial,sans-serif}.toolbar{width:210mm;margin:18px auto 12px;display:flex;justify-content:space-between;align-items:center;color:#655957;font-size:12px}.toolbar button{background:#281819;color:#fff;border:0;border-radius:3px;padding:10px 15px;font-weight:600;cursor:pointer}.quote{width:210mm;min-height:297mm;background:#fdfbf8;margin:0 auto;padding:18mm 19mm;box-shadow:0 4px 25px #0001;display:flex;flex-direction:column}.brandline{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #6f2430;padding-bottom:20px}.brand h1{font:600 25px Fraunces,Georgia,serif;margin:0 0 5px}.tagline{font:italic 12px Fraunces,Georgia,serif;color:#6f2430;margin:0 0 10px}.studio-meta{font-size:10px;line-height:1.7;color:#716563;white-space:pre-line}.quote-title{text-align:right}.quote-title h2{font:500 27px Fraunces,Georgia,serif;letter-spacing:1.6px;margin:2px 0 8px;color:#6f2430}.quote-title div{font-size:10px;line-height:1.8;color:#716563}.gst{display:inline-block;margin-top:10px;border:1px solid #d6a65b;color:#6f2430;padding:5px 7px;font-size:9px;letter-spacing:.5px}.client-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:23px 0}.label{font-size:9px;font-weight:700;letter-spacing:1px;color:#8a7369;margin-bottom:8px}.client{font:500 19px Fraunces,Georgia,serif;margin-bottom:6px}.client-meta{font-size:10px;line-height:1.8;color:#6d625d;white-space:pre-line}.section-title{font-size:10px;letter-spacing:1px;color:#6f2430;font-weight:700;margin:7px 0 9px}.quote-table{width:100%;border-collapse:collapse}.quote-table th{text-align:left;background:#f2e8df;color:#6f2430;font-size:9px;letter-spacing:.7px;padding:10px;border-top:1px solid #e5d8cf;border-bottom:1px solid #e5d8cf}.quote-table td{font-size:10px;padding:12px 10px;border-bottom:1px solid #ebe4dc;vertical-align:top}.quote-table th:nth-child(2),.quote-table td:nth-child(2){text-align:center;width:50px}.quote-table th:last-child,.quote-table td:last-child{text-align:right;width:130px}.description{display:block;color:#82746d;font-size:9px;line-height:1.6;margin-top:4px}.total-area{display:flex;justify-content:flex-end;margin-top:18px}.total{width:260px}.total-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #6f2430;padding:12px 0;font-size:12px}.total-row strong{font:600 19px Fraunces,Georgia,serif;color:#6f2430}.included-note{font-size:9px;color:#776a65;text-align:right;margin-top:2px}.enquiry{margin-top:25px;padding:14px;background:#f7f0e9;border-left:2px solid #d6a65b}.enquiry h2{font-size:9px;letter-spacing:1px;color:#6f2430;margin:0 0 7px}.enquiry p{font-size:10px;line-height:1.65;margin:0;white-space:pre-line}.footer{margin-top:auto;padding-top:22px}.terms{border-top:1px solid #e5d8cf;padding-top:12px;font-size:9px;line-height:1.7;color:#716563}.thankyou{text-align:center;font:italic 14px Fraunces,Georgia,serif;color:#6f2430;margin-top:16px}@page{size:A4;margin:0}@media print{body{background:#fff}.toolbar{display:none!important}.quote{width:auto;min-height:297mm;margin:0;padding:17mm 18mm;box-shadow:none;page-break-after:avoid}.quote-table,.client-grid,.total-area,.enquiry{break-inside:avoid}}
+    </style></head><body><div class="toolbar"><span>Quotation · ${escapeHtml(quotation.id)} · Choose “Save as PDF” in the print dialog</span><button onclick="window.print()">Print / Save as PDF</button></div>
+    <main class="quote"><header class="brandline"><div class="brand"><h1>${escapeHtml(studio.studioName)}</h1><p class="tagline">${escapeHtml(studio.tagline)}</p><div class="studio-meta">${escapeHtml(studioDetails)}</div>${taxId}</div><div class="quote-title"><h2>QUOTATION</h2><div>QUOTE NO. &nbsp; <b>${escapeHtml(quotation.id)}</b><br>ISSUED &nbsp; ${escapeHtml(formatDate(quotation.issuedOn))}<br>VALID UNTIL &nbsp; ${escapeHtml(formatDate(quotation.validUntil))}</div><span class="gst">GST INCLUDED IN PRICES</span></div></header>
+    <section class="client-grid"><div><div class="label">PREPARED FOR</div><div class="client">${escapeHtml(quotation.clientName)}</div><div class="client-meta">${escapeHtml(quotation.mobile)}</div></div><div><div class="label">ENQUIRY</div><div class="client-meta">Received: ${escapeHtml(formatDate(quotation.enquiryDate))}<br>Quotation type: ${quotation.isComplete ? "Complete package price list" : "Selected packages"}</div></div></section>
+    <div class="section-title">PROPOSED PHOTOGRAPHY &amp; FILM SERVICES</div><table class="quote-table"><thead><tr><th>SERVICE &amp; COVERAGE</th><th>QTY</th><th>PRICE (INR)</th></tr></thead><tbody>${rows}</tbody></table>
+    <section class="total-area"><div class="total"><div class="total-row"><span>Total quotation value</span><strong>${escapeHtml(money(quotation.total))}</strong></div><div class="included-note">All listed prices are inclusive of GST.</div></div></section>
+    ${enquiry}<footer class="footer"><div class="terms"><b>TERMS &amp; CONDITIONS</b><br>This quotation is valid until ${escapeHtml(formatDate(quotation.validUntil))}. Services, schedule, deliverables, and final event coverage will be confirmed in a separate project agreement. Booking and payment milestones will be agreed upon confirmation. Please contact the studio to discuss any changes or questions.</div><div class="thankyou">Thank you for considering Akshay Photo and Films.</div></footer></main></body></html>`;
+}
+
+function openQuotation(quotation) {
+  const quoteWindow = window.open("", "_blank");
+  if (!quoteWindow) {
+    toast("Allow pop-ups for this site to open the quotation.", true);
+    return false;
+  }
+  quoteWindow.document.open();
+  quoteWindow.document.write(quotationDocument(quotation));
+  quoteWindow.document.close();
+  quoteWindow.focus();
+  quoteWindow.setTimeout(() => quoteWindow.print(), 400);
+  toast("Quotation opened. Choose “Save as PDF” in the print dialog.");
+  return true;
 }
 
 function invoiceDocument(project) {
@@ -345,6 +527,7 @@ function openInvoice(project) {
 
 function bindEvents() {
   $("#newProjectButton").addEventListener("click", () => showDialog("projectModal"));
+  $("#newQuoteButton").addEventListener("click", openQuoteForm);
   $("#emptyNewProjectButton").addEventListener("click", () => showDialog("projectModal"));
   $("#settingsButton").addEventListener("click", () => { studioSettingsForm(); showDialog("settingsModal"); });
   $("#refreshButton").addEventListener("click", () => refreshData(true));
@@ -380,6 +563,39 @@ function bindEvents() {
     } }, "Payment milestone saved to Google Sheets.");
     if (ok) { form.reset(); closeDialog("paymentModal"); openProject(orderId); }
   });
+  $("#quoteServicePicker").addEventListener("change", updateQuoteTotal);
+  $("#quoteSelectAll").addEventListener("change", event => {
+    $$("[name='quoteServices']", $("#quoteServicePicker")).forEach(input => {
+      input.checked = event.currentTarget.checked;
+    });
+    updateQuoteTotal();
+  });
+  $("#quoteForm").addEventListener("submit", event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const services = selectedQuoteServices();
+    const missing = services.filter(packageItem => configuredRate(packageItem) === null);
+    if (missing.length || services.length === 0) {
+      updateQuoteTotal();
+      return;
+    }
+    const formData = Object.fromEntries(new FormData(form));
+    const issuedOn = dayInputValue();
+    const validityDays = Number(state.settings.quoteValidityDays) || 30;
+    const quotation = {
+      id: quotationId(),
+      clientName: formData.clientName.trim(),
+      mobile: formData.mobile.trim(),
+      enquiryDetails: formData.enquiryDetails.trim(),
+      enquiryDate: formData.enquiryDate,
+      issuedOn,
+      validUntil: addDays(issuedOn, validityDays),
+      isComplete: services.length === packageCatalog.length,
+      services: services.map(service => ({ ...service, rate: configuredRate(service) })),
+      total: services.reduce((sum, service) => sum + configuredRate(service), 0)
+    };
+    if (openQuotation(quotation)) closeDialog("quoteModal");
+  });
   $("#settingsForm").addEventListener("submit", event => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -392,7 +608,19 @@ function bindEvents() {
       }
       if (!data.apiKey.trim()) throw new Error("Enter the API key configured in Apps Script.");
       if (!data.studioName.trim()) throw new Error("Enter your studio name.");
-      saveSettings({ ...data, apiUrl, apiKey: data.apiKey.trim() });
+      const fixedRates = {};
+      for (const packageItem of packageCatalog) {
+        const value = data[`rate${capitalize(packageItem.id)}`].trim();
+        if (value && (!Number.isFinite(Number(value)) || Number(value) <= 0)) {
+          throw new Error(`${packageItem.label} rate must be a positive amount or left blank.`);
+        }
+        fixedRates[packageItem.id] = value ? Number(value) : "";
+      }
+      const quoteValidityDays = Number(data.quoteValidityDays || 30);
+      if (!Number.isInteger(quoteValidityDays) || quoteValidityDays < 1 || quoteValidityDays > 365) {
+        throw new Error("Quotation validity must be between 1 and 365 days.");
+      }
+      saveSettings({ ...data, apiUrl, apiKey: data.apiKey.trim(), fixedRates, quoteValidityDays });
       closeDialog("settingsModal");
       toast("Studio settings saved.");
       refreshData();

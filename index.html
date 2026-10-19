@@ -46,7 +46,10 @@
             <h1>Every story, <em>framed to last.</em></h1>
             <p class="page-subtitle">A clear view of your shoots, payments, and what’s next.</p>
           </div>
-          <button class="button button-dark" id="newProjectButton" type="button"><span>＋</span> New project</button>
+          <div class="heading-actions">
+            <button class="button button-outline" id="newQuoteButton" type="button">＋ New quotation</button>
+            <button class="button button-dark" id="newProjectButton" type="button"><span>＋</span> New project</button>
+          </div>
         </div>
 
         <div class="stats-grid">
@@ -134,6 +137,26 @@
     </form>
   </dialog>
 
+  <dialog class="modal quote-modal" id="quoteModal">
+    <form id="quoteForm" class="modal-form">
+      <div class="modal-heading"><div><p class="eyebrow">A NEW CLIENT ENQUIRY</p><h2>Create a quotation</h2></div><button class="close-button" type="button" data-close="quoteModal" aria-label="Close">×</button></div>
+      <p class="settings-intro">Create a client-ready quotation without creating a project. Select all packages for the complete price list, or choose only the packages requested. Prices include GST.</p>
+      <div class="form-grid">
+        <label class="field">Client name <span class="required">*</span><input name="clientName" required maxlength="120" placeholder="Client or couple name"></label>
+        <label class="field">Mobile number <span class="required">*</span><input name="mobile" type="tel" required maxlength="40" placeholder="+91 98765 43210"></label>
+        <label class="field">Enquiry date <span class="required">*</span><input name="enquiryDate" type="date" required></label>
+        <label class="field field-full">Enquiry details <span class="required">*</span><textarea name="enquiryDetails" required rows="2" maxlength="500" placeholder="Event, location, preferred date, or other requirements"></textarea></label>
+      </div>
+      <div class="quote-mode-label">SELECT PACKAGES TO INCLUDE</div>
+      <div class="quote-select-all"><label><input type="checkbox" id="quoteSelectAll" checked><span><strong>Select all packages</strong><small>Leave all selected for the complete price list, or deselect packages to create a custom quotation.</small></span></label></div>
+      <div class="quote-service-picker" id="quoteServicePicker" hidden></div>
+      <div class="quote-total-line" id="quoteTotalLine" hidden></div>
+      <div class="quote-error" id="quoteError" role="alert" hidden></div>
+      <div class="modal-actions"><button class="button button-quiet" type="button" data-close="quoteModal">Cancel</button><button class="button button-dark" type="submit">Generate quotation PDF</button></div>
+      <p class="quote-print-note">Opens a print-ready A4 quotation. Choose “Save as PDF” in the print dialog to download it.</p>
+    </form>
+  </dialog>
+
   <dialog class="modal" id="settingsModal">
     <form id="settingsForm" class="modal-form">
       <div class="modal-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2>Studio settings</h2></div><button class="close-button" type="button" data-close="settingsModal" aria-label="Close">×</button></div>
@@ -150,6 +173,14 @@
         <label class="field field-full">Studio website<input name="studioWebsite" type="url" maxlength="200" placeholder="https://akshayphotography123.netlify.app/"></label>
         <label class="field">GST / Tax ID<input name="taxId" maxlength="80" placeholder="Optional"></label>
         <label class="field">Bank / UPI details<input name="paymentDetails" maxlength="200" placeholder="UPI ID or bank details"></label>
+        <div class="settings-divider">FIXED PACKAGE PRICE LIST · GST INCLUDED</div>
+        <p class="settings-help">These package rates are prefilled from the studio’s supplied price list. Edit here if the official rates change; custom quotations use the same package prices.</p>
+        <label class="field">Wedding Package 1 · ₹<input name="rateWeddingPackage1" type="number" min="0.01" step="0.01" placeholder="26,000"></label>
+        <label class="field">Package 2 · Traditional Wedding · ₹<input name="rateWeddingPackage2" type="number" min="0.01" step="0.01" placeholder="38,000"></label>
+        <label class="field">Package 3 · Cinematic Wedding · ₹<input name="rateWeddingPackage3" type="number" min="0.01" step="0.01" placeholder="70,000"></label>
+        <label class="field">Pre-Wedding Package · ₹<input name="ratePreWeddingPackage" type="number" min="0.01" step="0.01" placeholder="55,000"></label>
+        <label class="field field-full">Complete Pre-Wedding, Wedding &amp; Engagement · ₹<input name="rateCompletePackage" type="number" min="0.01" step="0.01" placeholder="1,40,000"></label>
+        <label class="field field-full">Quotation validity (days)<input name="quoteValidityDays" type="number" min="1" max="365" step="1" placeholder="30"></label>
       </div>
       <div class="modal-actions"><button class="button button-quiet" type="button" data-close="settingsModal">Cancel</button><button class="button button-dark" type="submit">Save settings</button></div>
     </form>
