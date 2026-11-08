@@ -7,6 +7,8 @@ The studio name, wedding photography/cinematography tagline, phone number, email
 ## Files
 
 - `index.html`, `styles.css`, `app.js` — the static single-page application.
+- `assets/logo.png` — the studio logo used on printed invoices and invoice PDFs.
+- `assets/stamp.png`, `assets/signature.png` — the studio stamp and authorized signature shown on invoices.
 - `google-apps-script.gs` — the Google Sheets REST API to paste into the spreadsheet-bound Apps Script project.
 - `_redirects` — Netlify single-page fallback.
 
@@ -48,7 +50,7 @@ No build command, function, or package installation is needed.
 
 ### Drag and drop
 
-1. Put `index.html`, `styles.css`, `app.js`, and `_redirects` in the same folder.
+1. Deploy the app folder with `index.html`, `styles.css`, `app.js`, `_redirects`, and the complete `assets` folder.
 2. In Netlify, choose **Add new site → Deploy manually** and drag that folder into the deploy area.
 3. Open the deployed site and configure its Apps Script URL, API key, and studio settings.
 
