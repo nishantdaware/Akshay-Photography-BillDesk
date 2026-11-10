@@ -31,7 +31,7 @@ The app requires the API key in Apps Script `Script Properties` and sends it fro
 ## 2. Connect and use the app
 
 1. Serve the site over HTTP for local use (do not open the file as `file://`): from the app folder, run `python -m http.server 8000`, then visit `http://localhost:8000`. Alternatively, deploy the site using the steps below.
-2. Open **Settings & setup**, confirm the prefilled `/exec` URL (replace it if you deploy a new Apps Script version with a new URL), and enter the exact `API_KEY` value.
+2. Open **Settings & setup**, confirm the prefilled Web App `/exec` URL and enter the exact `API_KEY` value. The library documentation URL is not the API endpoint. If you create a different Web App deployment, replace the URL with that deployment's `/exec` URL.
 3. Enter the studio name, tagline, address, phone, email, optional GST/Tax ID, and bank / UPI instructions used on invoices. Select **Save settings**.
 4. Create projects, record payments, and open a project to review its payment history, update its status, or print its invoice.
 5. To create a quotation, choose **New quotation** from the dashboard. Enter the client name, mobile number, enquiry date, and enquiry details. All packages are selected by default; leave **Select all packages** checked for the complete price list, or deselect packages to make a custom quotation. Generating opens the browser's print dialog; choose **Save as PDF** to download the A4 quotation. A print button is also available in the preview. Browsers require this confirmation and do not permit a site to silently save a PDF. Quotations do not create projects or write to Google Sheets.

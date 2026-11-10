@@ -3,6 +3,7 @@
 const SETTINGS_KEY = "frame-field-settings-v1";
 const THEME_KEY = "akshay-studio-theme-v1";
 const REFRESH_INTERVAL_MS = 60000;
+const PREVIOUS_API_URL = "https://script.google.com/macros/s/AKfycbz3BLp2ARP4Y5gJY_KFyPijmj48LsJj5FwzYvlo6nn5Yf20lsFNJVBEEDjwgWtwaw51gQ/exec";
 const packageCatalog = [
   {
     id: "weddingPackage1", label: "Wedding Package 1",
@@ -62,7 +63,7 @@ const packageCatalog = [
   }
 ];
 const defaults = {
-  apiUrl: "https://script.google.com/macros/s/AKfycbz3BLp2ARP4Y5gJY_KFyPijmj48LsJj5FwzYvlo6nn5Yf20lsFNJVBEEDjwgWtwaw51gQ/exec",
+  apiUrl: "https://script.google.com/macros/s/AKfycbxnf-3H6prTpcV0LiIheR4OJQYYPeVDM6YfqnQtvOwmtGbc6u_Y5CTF7hnBLR3M6z8KiA/exec",
   apiKey: "", studioName: "Akshay Photo and Films", tagline: "Wedding Photography & Cinematography",
   studioAddress: "", studioPhone: "+91 73851 99613", studioEmail: "Akshaykumarkhot2115@gmail.com",
   studioWebsite: "https://akshayphotography123.netlify.app/", taxId: "", paymentDetails: "",
@@ -87,6 +88,9 @@ function loadSettings() {
       ...saved,
       fixedRates: { ...defaults.fixedRates, ...(saved.fixedRates || {}) }
     };
+    if (settings.apiUrl === PREVIOUS_API_URL) {
+      settings.apiUrl = defaults.apiUrl;
+    }
     if (settings.apiUrl === "/.netlify/functions/sheets") {
       settings.apiUrl = defaults.apiUrl;
     }
