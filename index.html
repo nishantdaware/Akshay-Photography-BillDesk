@@ -34,6 +34,7 @@
         <div class="breadcrumb">WORKSPACE <span>/</span> <strong id="breadcrumbCurrent">OVERVIEW</strong></div>
         <div class="topbar-actions">
           <span class="sync-label" id="syncLabel">Waiting to sync</span>
+          <button class="icon-button theme-button" id="themeButton" type="button" aria-label="Switch to dark theme" title="Switch to dark theme">☾</button>
           <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh from Google Sheets" title="Refresh from Google Sheets">↻</button>
           <span class="avatar" aria-label="Akshay Photo and Films">AP</span>
         </div>
@@ -103,15 +104,21 @@
 
   <dialog class="modal" id="projectModal">
     <form id="projectForm" class="modal-form">
-      <div class="modal-heading"><div><p class="eyebrow">A NEW STORY</p><h2>Create a project</h2></div><button class="close-button" type="button" data-close="projectModal" aria-label="Close">×</button></div>
+      <div class="modal-heading"><div><p class="eyebrow">A NEW STORY</p><h2 id="projectModalTitle">Create a project</h2></div><button class="close-button" type="button" data-close="projectModal" aria-label="Close">×</button></div>
       <div class="form-grid">
         <label class="field field-full">Client name <span class="required">*</span><input name="clientName" required maxlength="120" placeholder="e.g. Mira &amp; Arjun"></label>
         <label class="field field-full">Phone &amp; email<input name="clientContact" maxlength="240" placeholder="+91 98765 43210 · hello@example.com"></label>
-        <label class="field field-full">Event / service type <span class="required">*</span><input name="serviceType" required maxlength="160" list="serviceSuggestions" placeholder="e.g. Wedding Shoot"><datalist id="serviceSuggestions"><option value="Wedding Shoot"><option value="Pre-Wedding Shoot"><option value="Ring Ceremony"><option value="Commercial"><option value="Modeling Portfolios"><option value="Wildlife"><option value="Luxury Brand &amp; Portrait Shoots"></datalist></label>
+        <label class="field field-full">Event / service type<input name="serviceType" maxlength="160" list="serviceSuggestions" placeholder="e.g. Wedding Shoot"><datalist id="serviceSuggestions"><option value="Wedding Shoot"><option value="Pre-Wedding Shoot"><option value="Ring Ceremony"><option value="Commercial"><option value="Modeling Portfolios"><option value="Wildlife"><option value="Luxury Brand &amp; Portrait Shoots"></datalist></label>
         <label class="field">Event date <span class="required">*</span><input name="eventDate" type="date" required></label>
-        <label class="field">Total agreed amount <span class="required">*</span><div class="money-input"><span>₹</span><input name="totalAmount" type="number" min="0.01" step="0.01" required placeholder="85,000"></div></label>
+        <label class="field">Photography service amount<div class="money-input"><span>₹</span><input name="serviceAmount" id="serviceAmount" type="number" min="0" step="0.01" placeholder="Optional"></div></label>
+        <section class="frame-picker field-full" aria-labelledby="framePickerTitle">
+          <div class="frame-picker-heading"><div><h3 id="framePickerTitle">Photo frames</h3><p>Add each size with its quantity and price per frame.</p></div><button class="button button-outline" id="addFrameItemButton" type="button">＋ Add frame</button></div>
+          <div class="frame-column-labels" aria-hidden="true"><span>FRAME SIZE</span><span>QTY</span><span>PRICE EACH</span><span>LINE TOTAL</span><span></span></div>
+          <div class="frame-items" id="frameItems"></div>
+          <div class="frame-totals"><span>Frames subtotal</span><strong id="frameSubtotal">₹0.00</strong><span>Project total</span><strong id="projectTotal">₹0.00</strong></div>
+        </section>
       </div>
-      <div class="modal-actions"><button class="button button-quiet" type="button" data-close="projectModal">Cancel</button><button class="button button-dark" type="submit">Create project</button></div>
+      <div class="modal-actions"><button class="button button-quiet" type="button" data-close="projectModal">Cancel</button><button class="button button-dark" id="projectSubmitButton" type="submit">Create project</button></div>
     </form>
   </dialog>
 

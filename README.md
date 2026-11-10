@@ -24,7 +24,7 @@ The studio name, wedding photography/cinematography tagline, phone number, email
 6. Choose **Deploy → New deployment → Web app**:
    - **Execute as:** Me
    - **Who has access:** Anyone
-7. Deploy, authorize if prompted, and copy the Web app URL ending in `/exec`. If the script changes later, use **Deploy → Manage deployments → Edit → New version → Deploy**.
+7. Deploy, authorize if prompted, and copy the Web app URL ending in `/exec`. If the script changes later, use **Deploy → Manage deployments → Edit → New version → Deploy**. When updating an existing sheet, the updated script appends the `Frame Items JSON` column automatically the next time the app connects.
 
 The app requires the API key in Apps Script `Script Properties` and sends it from the browser for each request. Because the key is present in browser storage and network requests, anyone who can use the app may be able to retrieve it and access the spreadsheet. Use only with trusted users and non-sensitive data; never publish the key in source code or a public repository. Rotate any key that has been shared.
 
@@ -35,6 +35,10 @@ The app requires the API key in Apps Script `Script Properties` and sends it fro
 3. Enter the studio name, tagline, address, phone, email, optional GST/Tax ID, and bank / UPI instructions used on invoices. Select **Save settings**.
 4. Create projects, record payments, and open a project to review its payment history, update its status, or print its invoice.
 5. To create a quotation, choose **New quotation** from the dashboard. Enter the client name, mobile number, enquiry date, and enquiry details. All packages are selected by default; leave **Select all packages** checked for the complete price list, or deselect packages to make a custom quotation. Generating opens the browser's print dialog; choose **Save as PDF** to download the A4 quotation. A print button is also available in the preview. Browsers require this confirmation and do not permit a site to silently save a PDF. Quotations do not create projects or write to Google Sheets.
+
+When creating a project, add any number of photo-frame lines with a manually entered size, quantity, and per-frame price. Frame subtotals are included in the project value and stored with the project; invoices show each size, quantity, unit price, and line total. Update and redeploy the Apps Script before using this feature with an existing deployment.
+
+Open a project from the dashboard to edit its details or delete it. Deleting a project also permanently deletes its linked payment history. Project totals cannot be edited below the amount already paid. Deploy the updated Apps Script with a new version to enable editing and deletion through an existing deployment.
 
 ### Quotation price list
 

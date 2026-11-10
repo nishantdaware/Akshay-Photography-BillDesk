@@ -1,6 +1,7 @@
 "use strict";
 
 const SETTINGS_KEY = "frame-field-settings-v1";
+const THEME_KEY = "akshay-studio-theme-v1";
 const REFRESH_INTERVAL_MS = 60000;
 const packageCatalog = [
   {
@@ -74,7 +75,7 @@ const defaults = {
     completePackage: 140000
   }
 };
-const state = { projects: [], payments: [], settings: loadSettings(), selectedProjectId: null, busy: false, toastTimer: null };
+const state = { projects: [], payments: [], settings: loadSettings(), selectedProjectId: null, editingProjectId: null, busy: false, toastTimer: null };
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
@@ -113,6 +114,29 @@ function saveSettings(settings) {
   }
 }
 
+function loadTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+  } catch (error) {
+    return "light";
+  }
+}
+
+function setTheme(theme) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  const button = $("#themeButton");
+  button.textContent = isDark ? "☀" : "☾";
+  button.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} theme`);
+  button.title = `Switch to ${isDark ? "light" : "dark"} theme`;
+  button.setAttribute("aria-pressed", String(isDark));
+  try {
+    localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
+  } catch (error) {
+    // The theme still applies for this page view when storage is unavailable.
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -145,6 +169,95 @@ function getProjectTotals(project) {
   const paid = getProjectPayments(project.orderId).reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0);
   const total = Number(project.totalAmount || 0);
   return { paid, total, balance: Math.max(0, total - paid), percent: total > 0 ? Math.min(100, paid / total * 100) : 0 };
+}
+
+function getFrameItems(project) {
+  try {
+    const items = typeof project.frameItems === "string" ? JSON.parse(project.frameItems || "[]") : project.frameItems;
+    return Array.isArray(items) ? items : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function frameItemsFromForm() {
+  return $$(".frame-item-row", $("#frameItems")).flatMap(row => {
+    const size = $$("[data-frame-size]", row)[0].value.trim();
+    const quantityValue = $$("[data-frame-quantity]", row)[0].value;
+    const priceValue = $$("[data-frame-price]", row)[0].value;
+    if (!size && !priceValue) return [];
+    const quantity = Number(quantityValue);
+    const unitPrice = Number(priceValue);
+    if (!size || !priceValue) throw new Error("Enter a frame size and price for each frame line.");
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+      throw new Error("Frame quantity must be a whole number between 1 and 999.");
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error("Frame price must be greater than zero.");
+    return [{ size, quantity, unitPrice }];
+  });
+}
+
+function updateFrameSummary() {
+  let subtotal = 0;
+  $$(".frame-item-row", $("#frameItems")).forEach(row => {
+    const quantity = Number($$("[data-frame-quantity]", row)[0].value);
+    const price = Number($$("[data-frame-price]", row)[0].value);
+    const size = $$("[data-frame-size]", row)[0].value.trim();
+    const lineTotal = size && Number.isInteger(quantity) && quantity > 0 && price > 0 ? quantity * price : 0;
+    subtotal += lineTotal;
+    $(".frame-line-total", row).textContent = lineTotal ? money(lineTotal) : "—";
+  });
+  const serviceAmount = Number($("#serviceAmount").value) || 0;
+  $("#frameSubtotal").textContent = money(subtotal);
+  $("#projectTotal").textContent = money(serviceAmount + subtotal);
+}
+
+function addFrameItem(item = {}) {
+  if ($$(".frame-item-row", $("#frameItems")).length >= 30) {
+    toast("A project can include up to 30 frame lines.", true);
+    return;
+  }
+  const row = document.createElement("div");
+  row.className = "frame-item-row";
+  row.innerHTML = `<label class="frame-input-wrap frame-size-field"><span>Frame size</span><input data-frame-size type="text" maxlength="40" placeholder="8 × 12" aria-label="Frame size"></label>
+    <label class="frame-input-wrap frame-quantity-field"><span>Quantity</span><input data-frame-quantity type="number" min="1" max="999" step="1" value="1" aria-label="Frame quantity"></label>
+    <label class="frame-input-wrap frame-price-field"><span>Price each</span><input data-frame-price type="number" min="0.01" step="0.01" placeholder="Price each" aria-label="Price per frame"></label>
+    <strong class="frame-line-total">—</strong>
+    <button class="frame-remove" type="button" aria-label="Remove frame">×</button>`;
+  $("#frameItems").append(row);
+  $("[data-frame-size]", row).value = item.size || "";
+  $("[data-frame-quantity]", row).value = item.quantity || 1;
+  $("[data-frame-price]", row).value = item.unitPrice || "";
+  if (!item.size) $("[data-frame-size]", row).focus();
+  updateFrameSummary();
+}
+
+function resetProjectForm() {
+  state.editingProjectId = null;
+  $("#projectForm").reset();
+  $("#frameItems").replaceChildren();
+  $("#projectModalTitle").textContent = "Create a project";
+  $("#projectSubmitButton").textContent = "Create project";
+  updateFrameSummary();
+}
+
+function editProject(project) {
+  resetProjectForm();
+  state.editingProjectId = project.orderId;
+  const form = $("#projectForm");
+  form.elements.namedItem("clientName").value = project.clientName || "";
+  form.elements.namedItem("clientContact").value = project.clientContact || "";
+  form.elements.namedItem("serviceType").value = project.serviceType || "";
+  form.elements.namedItem("eventDate").value = String(project.eventDate || "").slice(0, 10);
+  const frameItems = getFrameItems(project);
+  const frameTotal = frameItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  $("#serviceAmount").value = String(Math.max(0, Number(project.totalAmount || 0) - frameTotal));
+  frameItems.forEach(item => addFrameItem(item));
+  $("#projectModalTitle").textContent = "Edit project";
+  $("#projectSubmitButton").textContent = "Save changes";
+  updateFrameSummary();
+  closeDialog("detailModal");
+  showDialog("projectModal");
 }
 
 function setConnection(connected, message) {
@@ -189,7 +302,11 @@ async function apiRequest(method, payload = {}) {
 
 function requireSuccess(result) {
   if (!result || result.success !== true) {
-    throw new Error(result && result.error ? result.error : "The Sheets API returned an unexpected response.");
+    const message = result && result.error ? result.error : "The Sheets API returned an unexpected response.";
+    if (message === "Unsupported POST action.") {
+      throw new Error("This Apps Script deployment is outdated. Deploy the latest google-apps-script.gs as a new version to enable project editing and deletion.");
+    }
+    throw new Error(message);
   }
   return result;
 }
@@ -328,7 +445,11 @@ function renderProjectDetail(projectId) {
     </div>
     <p class="detail-client-line">${escapeHtml(project.serviceType)} · ${escapeHtml(formatDate(project.eventDate))}<br>${escapeHtml(project.clientContact || "No contact details added")}</p>
     <div class="detail-actions">
-      <button class="button button-outline" type="button" id="invoiceButton">↗&nbsp; Print invoice</button>
+      <div class="detail-primary-actions">
+        <button class="button button-outline" type="button" id="invoiceButton">↗&nbsp; Print invoice</button>
+        <button class="button button-outline" type="button" id="editProjectButton">Edit project</button>
+        <button class="button button-danger" type="button" id="deleteProjectButton">Delete</button>
+      </div>
       <div class="detail-actions-group">
         <select class="status-select" id="projectStatusSelect" aria-label="Project status">
           ${["Active", "Completed", "Cancelled"].map(status => `<option value="${status}" ${status === project.status ? "selected" : ""}>${status}</option>`).join("")}
@@ -339,6 +460,8 @@ function renderProjectDetail(projectId) {
     <div class="detail-section-heading"><h3>Payment history</h3><span class="client-service">${payments.length} milestone${payments.length === 1 ? "" : "s"}</span></div>
     ${payments.length ? `<div class="table-scroll"><table class="payment-history"><thead><tr><th>MILESTONE</th><th>DATE</th><th>MODE</th><th>AMOUNT</th><th>REFERENCE</th></tr></thead><tbody>${paymentRows}</tbody></table></div>` : `<div class="payment-empty">No payments recorded yet. Add a milestone when your client pays.</div>`}`;
   $("#invoiceButton").addEventListener("click", () => openInvoice(project));
+  $("#editProjectButton").addEventListener("click", () => editProject(project));
+  $("#deleteProjectButton").addEventListener("click", () => deleteProject(project));
   $("#addPaymentButton").addEventListener("click", () => openPaymentForm(project));
   $("#projectStatusSelect").addEventListener("change", event => changeProjectStatus(project, event.target.value));
 }
@@ -354,6 +477,24 @@ async function changeProjectStatus(project, status) {
   } catch (error) {
     toast(error.message, true);
     renderProjectDetail(project.orderId);
+  } finally {
+    state.busy = false;
+  }
+}
+
+async function deleteProject(project) {
+  if (state.busy) return;
+  const confirmed = window.confirm(`Delete ${project.clientName}'s project and all linked payment history? This cannot be undone.`);
+  if (!confirmed) return;
+  state.busy = true;
+  try {
+    requireSuccess(await apiRequest("POST", { action: "deleteProject", orderId: project.orderId }));
+    state.selectedProjectId = null;
+    closeDialog("detailModal");
+    await refreshData();
+    toast("Project and linked payment history deleted.");
+  } catch (error) {
+    toast(error.message, true);
   } finally {
     state.busy = false;
   }
@@ -494,6 +635,16 @@ function invoiceDocument(project) {
   const payments = getProjectPayments(project.orderId).sort((a, b) => String(a.paymentDate || "").localeCompare(String(b.paymentDate || "")));
   const totals = getProjectTotals(project);
   const isPaid = totals.balance <= 0 && totals.total > 0;
+  const frameItems = getFrameItems(project);
+  const frameTotal = frameItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0);
+  const serviceAmount = Math.max(0, totals.total - frameTotal);
+  const serviceRow = serviceAmount > 0 ? `<tr><td><span class="service-desc">${escapeHtml(project.serviceType || "Photography services")}</span><span class="service-sub">Photography services for ${escapeHtml(project.clientName)}</span></td><td>1</td><td>${escapeHtml(money(serviceAmount))}</td><td>${escapeHtml(money(serviceAmount))}</td></tr>` : "";
+  const frameRows = frameItems.map(item => {
+    const unitPrice = Number(item.unitPrice) || 0;
+    const quantity = Number(item.quantity) || 0;
+    return `<tr><td><span class="service-desc">Photo frame · ${escapeHtml(item.size)}</span></td><td>${quantity}</td><td>${escapeHtml(money(unitPrice))}</td><td>${escapeHtml(money(unitPrice * quantity))}</td></tr>`;
+  }).join("");
+  const itemRows = serviceRow + frameRows;
   const contact = project.clientContact ? `<div class="client-contact">${escapeHtml(project.clientContact)}</div>` : "";
   const taxId = studio.taxId ? `<div><b>GST / TAX ID</b><br>${escapeHtml(studio.taxId)}</div>` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invoice ${escapeHtml(project.orderId)} — ${escapeHtml(studio.studioName)}</title>
@@ -505,7 +656,7 @@ function invoiceDocument(project) {
       <header class="brandline"><div class="brand"><div class="brand-copy"><h1>${escapeHtml(studio.studioName || "Photography Studio")}</h1>${studio.tagline ? `<p class="tagline">${escapeHtml(studio.tagline)}</p>` : ""}<div class="studio-meta">${escapeHtml([studio.studioAddress, studio.studioPhone, studio.studioEmail, studio.studioWebsite].filter(Boolean).join("\n"))}</div>${taxId}</div></div>
       <div class="invoice-title"><img class="studio-logo" src="${escapeHtml(logoUrl)}" alt="Studio logo" style="width:120px;height:54px;margin-top:-8px"><h2 style="font-size:23px">INVOICE</h2><div class="invoice-dates">ISSUED &nbsp; ${escapeHtml(formatDate(dayInputValue()))}</div></div></header>
       <section class="client-block"><div><div class="section-label">BILLED TO</div><p class="client-name">${escapeHtml(project.clientName)}</p>${contact}</div></section>
-      <div class="section-label table-title">SERVICE</div><table><thead><tr><th>DESCRIPTION</th><th>QTY</th><th>AMOUNT (INR)</th></tr></thead><tbody><tr><td><span class="service-desc">${escapeHtml(project.serviceType)}</span><span class="service-sub">Photography services for ${escapeHtml(project.clientName)}</span></td><td>1</td><td>${escapeHtml(money(totals.total))}</td></tr></tbody></table>
+      <div class="section-label table-title">PROJECT ITEMS</div><table><thead><tr><th>DESCRIPTION</th><th>QTY</th><th>UNIT PRICE (INR)</th><th>AMOUNT (INR)</th></tr></thead><tbody>${itemRows}</tbody></table>
       <div class="section-label table-title">PAYMENT MILESTONES</div><table class="payment-table"><thead><tr><th>MILESTONE</th><th>DATE RECEIVED</th><th>MODE</th><th>AMOUNT (INR)</th></tr></thead><tbody>${payments.length ? payments.map(payment => `<tr><td>${escapeHtml(payment.milestoneLabel)}</td><td>${escapeHtml(formatDate(payment.paymentDate))}</td><td>${escapeHtml(payment.paymentMode)}</td><td>${escapeHtml(money(payment.amountPaid))}</td></tr>`).join("") : `<tr><td colspan="4">No payments recorded</td></tr>`}</tbody></table>
       <section class="summary-area"><div class="summary"><div class="summary-row"><span>Total package value</span><b>${escapeHtml(money(totals.total))}</b></div><div class="summary-row"><span>Total paid to date</span><b>${escapeHtml(money(totals.paid))}</b></div><div class="summary-row balance"><span>${isPaid ? "Balance due" : "Balance due"}</span><b>${escapeHtml(money(totals.balance))}</b></div>${isPaid ? `<div style="text-align:right"><span class="paid-badge">PAID IN FULL</span></div>` : ""}</div></section>
       <footer class="invoice-footer">
@@ -527,9 +678,29 @@ function openInvoice(project) {
 }
 
 function bindEvents() {
-  $("#newProjectButton").addEventListener("click", () => showDialog("projectModal"));
+  $("#themeButton").addEventListener("click", () => {
+    setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
+  $("#newProjectButton").addEventListener("click", () => {
+    resetProjectForm();
+    showDialog("projectModal");
+  });
+  $("#addFrameItemButton").addEventListener("click", addFrameItem);
+  $("#serviceAmount").addEventListener("input", updateFrameSummary);
+  $("#frameItems").addEventListener("input", updateFrameSummary);
+  $("#frameItems").addEventListener("click", event => {
+    const removeButton = event.target.closest(".frame-remove");
+    if (removeButton) {
+      removeButton.closest(".frame-item-row").remove();
+      updateFrameSummary();
+    }
+  });
   $("#newQuoteButton").addEventListener("click", openQuoteForm);
-  $("#emptyNewProjectButton").addEventListener("click", () => showDialog("projectModal"));
+  $("#emptyNewProjectButton").addEventListener("click", () => {
+    resetProjectForm();
+    showDialog("projectModal");
+  });
+  $("#projectModal").addEventListener("close", resetProjectForm);
   $("#settingsButton").addEventListener("click", () => { studioSettingsForm(); showDialog("settingsModal"); });
   $("#refreshButton").addEventListener("click", () => refreshData(true));
   $("#searchInput").addEventListener("input", render);
@@ -546,11 +717,23 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
-    const ok = await mutate({ form, data: {
-      action: "createProject", clientName: data.clientName.trim(), clientContact: data.clientContact.trim(),
-      serviceType: data.serviceType.trim(), eventDate: data.eventDate, totalAmount: Number(data.totalAmount)
-    } }, "Project created in Google Sheets.");
-    if (ok) { form.reset(); closeDialog("projectModal"); }
+    try {
+      const frameItems = frameItemsFromForm();
+      const serviceAmount = Number(data.serviceAmount) || 0;
+      const totalAmount = serviceAmount + frameItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const serviceType = data.serviceType.trim() || (frameItems.length ? "Photo Frames" : "");
+      if (!serviceType) throw new Error("Enter a service type or add at least one photo frame.");
+      if (totalAmount <= 0) throw new Error("Enter a service amount or add a priced photo frame.");
+      const editingProjectId = state.editingProjectId;
+      const ok = await mutate({ form, data: {
+        action: editingProjectId ? "updateProject" : "createProject", orderId: editingProjectId,
+        clientName: data.clientName.trim(), clientContact: data.clientContact.trim(),
+        serviceType, eventDate: data.eventDate, serviceAmount, frameItems, totalAmount
+      } }, editingProjectId ? "Project changes saved." : "Project created in Google Sheets.");
+      if (ok) closeDialog("projectModal");
+    } catch (error) {
+      toast(error.message, true);
+    }
   });
   $("#paymentForm").addEventListener("submit", async event => {
     event.preventDefault();
@@ -637,6 +820,7 @@ function bindEvents() {
 }
 
 function init() {
+  setTheme(loadTheme());
   $("#todayLabel").textContent = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   bindEvents();
   render();
